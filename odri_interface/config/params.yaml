@@ -1,0 +1,4 @@
+master_board_wrapper:
+  ros__parameters:
+    adapter_name: "enp61s0"
+    n_slaves: 1
