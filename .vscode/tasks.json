@@ -1,0 +1,27 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "buildROS2Release",
+			"detail": "Source ROS2 workspace and cd",
+			"type": "shell",
+			"command": "source /opt/ros/galactic/setup.bash && cd ${workspaceFolder}/../../ && colcon build --event-handlers console_direct+ ${input:cmake_opts} --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_BUILD_TYPE=Release",
+			"group": "build",
+			"problemMatcher": "$gcc"
+		}
+	],
+	"inputs": [
+		{
+			"type": "pickString",
+			"id": "cmake_opts",
+			"description": "Cmake options",
+			"options": [
+				"",
+				"--cmake-clean-cache",
+				"--cmake-clean-first",
+				"--cmake-force-configure"
+			],
+			"default": ""
+		}
+	]
+}

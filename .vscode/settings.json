@@ -1,0 +1,21 @@
+{
+  "python.linting.enabled": true,
+  "python.linting.pylintEnabled": false,
+  "python.linting.flake8Enabled": true,
+  "python.linting.flake8Args": [
+    "--max-line-length=119"
+  ],
+  "python.formatting.provider": "yapf",
+  "python.formatting.yapfArgs": [
+    "--style",
+    "{column_limit: 119}"
+  ],
+  "python.analysis.extraPaths": [
+    "/opt/ros/galactic/lib/python3.8/site-packages/"
+  ],
+  // Autocomplete from ros python packages
+  "python.autoComplete.extraPaths": [
+    "/opt/ros/galactic/lib/python3.8/site-packages/"
+  ],
+  "cmake.configureOnOpen": false
+}
