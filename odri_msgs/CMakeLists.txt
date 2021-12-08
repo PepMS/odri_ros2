@@ -24,7 +24,9 @@ rosidl_generate_interfaces(
   "interfaces/msg/MotorCommand.msg"
   "interfaces/msg/DriverCommand.msg"
   "interfaces/msg/MasterBoardCommand.msg"
-  "interfaces/msg/MotorCommands.msg"
+  "interfaces/msg/RobotCommand.msg"
+  "interfaces/msg/RobotState.msg"
+  "interfaces/srv/TransitionCommand.srv"
   DEPENDENCIES
   std_msgs)
 
