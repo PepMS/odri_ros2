@@ -15,14 +15,14 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(odri_msgs REQUIRED)
 
-add_executable(example_driver src/example_driver.cpp)
-ament_target_dependencies(example_driver rclcpp odri_msgs)
-target_include_directories(example_driver PUBLIC
+add_executable(example_robot src/example_robot.cpp)
+ament_target_dependencies(example_robot rclcpp odri_msgs)
+target_include_directories(example_robot PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
-target_compile_features(example_driver PUBLIC c_std_99 cxx_std_14)  # Require C99 and C++14
+target_compile_features(example_robot PUBLIC c_std_99 cxx_std_14)  # Require C99 and C++14
 
-install(TARGETS example_driver
+install(TARGETS example_robot
   DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
@@ -36,7 +36,7 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 endif()
 
-install(TARGETS example_driver DESTINATION lib/${PROJECT_NAME})
+install(TARGETS example_robot DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
 
