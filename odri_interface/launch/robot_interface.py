@@ -9,8 +9,10 @@ def generate_launch_description():
     config = os.path.join(get_package_share_directory('odri_interface'), 'config', 'params.yaml')
 
     node = Node(package='odri_interface',
-                name='master_board_wrapper',
-                executable='master_board_wrapper',
+                name='robot_interface',
+                executable='robot_interface',
+                output='screen',
+                # emulate_tty=True,
                 parameters=[config])
     ld.add_action(node)
     

@@ -1,4 +1,5 @@
-master_board_wrapper:
+robot_interface:
   ros__parameters:
+    robot_yaml_path: "/home/pepms/wsros2/mpc-ws/src/odri_ros2/odri_examples/config/robots/separate_legs.yaml"
     adapter_name: "enp61s0"
     n_slaves: 1

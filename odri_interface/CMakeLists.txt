@@ -13,16 +13,17 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(Eigen3 REQUIRED)
 find_package(odri_msgs REQUIRED)
-find_package(master_board_sdk)
+find_package(odri_control_interface)
 
-set(ODRI_INTERFACE_SRC src/master_board_wrapper.cpp)
+set(ODRI_INTERFACE_SRC src/robot_interface.cpp)
 
-include_directories(include ${MASTER_BOARD_SDK_INCLUDE_DIRS})
+include_directories(include ${ODRI_CONTROL_INTERFACE_DIRS} ${EIGEN_INCLUDE_DIR})
 
-add_executable(master_board_wrapper ${ODRI_INTERFACE_SRC})
-ament_target_dependencies(master_board_wrapper rclcpp odri_msgs)
-target_link_libraries(master_board_wrapper master_board_sdk::master_board_sdk)
+add_executable(robot_interface ${ODRI_INTERFACE_SRC})
+ament_target_dependencies(robot_interface rclcpp odri_msgs)
+target_link_libraries(robot_interface odri_control_interface::odri_control_interface)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -34,7 +35,7 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 endif()
 
-install(TARGETS master_board_wrapper DESTINATION lib/${PROJECT_NAME})
+install(TARGETS robot_interface DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
 install(DIRECTORY config DESTINATION share/${PROJECT_NAME})
