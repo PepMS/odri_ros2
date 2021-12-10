@@ -12,7 +12,7 @@ def generate_launch_description():
                 name='robot_interface',
                 executable='robot_interface',
                 output='screen',
-                # emulate_tty=True,
+                emulate_tty=True,
                 parameters=[config])
     ld.add_action(node)
     

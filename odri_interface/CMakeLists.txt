@@ -19,7 +19,7 @@ find_package(odri_control_interface)
 
 set(ODRI_INTERFACE_SRC src/robot_interface.cpp)
 
-include_directories(include ${ODRI_CONTROL_INTERFACE_DIRS} ${EIGEN_INCLUDE_DIR})
+include_directories(include ${ODRI_CONTROL_INTERFACE_DIRS} ${EIGEN3_INCLUDE_DIR})
 
 add_executable(robot_interface ${ODRI_INTERFACE_SRC})
 ament_target_dependencies(robot_interface rclcpp odri_msgs)
