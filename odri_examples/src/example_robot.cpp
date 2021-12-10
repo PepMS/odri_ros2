@@ -15,6 +15,11 @@ ExampleRobot::ExampleRobot(const std::string &node_name) : Node(node_name)
   timer_publish_command_ = create_wall_timer(std::chrono::duration<double, std::milli>(1),
                                              std::bind(&ExampleRobot::callbackTimerPublishCommand, this));
 
+  callback_handle_ = this->add_on_set_parameters_callback(
+      std::bind(&ExampleRobot::callbackParameters, this, std::placeholders::_1));
+
+  client_odri_interface_ = create_client<odri_msgs::srv::TransitionCommand>("/robot_interface/state_transition");
+
   got_initial_position_ = false;
   counter_initial_position_ = 0;
 
@@ -22,6 +27,10 @@ ExampleRobot::ExampleRobot(const std::string &node_name) : Node(node_name)
   wave_params_.freq = 0.25;
   wave_params_.t = 0;
   wave_params_.dt = 0.001;
+
+  declare_parameter<bool>("publish_commands", false);
+
+  brought_to_init_ = false;
 }
 
 ExampleRobot::~ExampleRobot() {}
@@ -35,40 +44,76 @@ void ExampleRobot::callbackTimerPublishCommand()
   msg_robot_command_.header.stamp = get_clock()->now();
   msg_robot_command_.motor_commands.clear();
 
-  for (std::size_t i = 0; i < 2; ++i)
+  if (params_.publish_commands)
   {
-    odri_msgs::msg::MotorCommand command;
+    for (std::size_t i = 0; i < 2; ++i)
+    {
+      odri_msgs::msg::MotorCommand command;
 
-    command.position_ref = wave_params_.init_pos[i] + wave_params_.amplitude * sin(2 * M_PI * wave_params_.freq * wave_params_.t);
-    command.velocity_ref = 2. * M_PI * wave_params_.freq * wave_params_.amplitude * cos(2 * M_PI * wave_params_.freq * wave_params_.t);
-    command.kp = 5.;
-    command.kd = 0.1;
-    command.i_sat = 1.;
+      if (brought_to_init_)
+      {
+        command.position_ref = wave_params_.amplitude * sin(2 * M_PI * wave_params_.freq * wave_params_.t);
+        command.velocity_ref = 2. * M_PI * wave_params_.freq * wave_params_.amplitude * cos(2 * M_PI * wave_params_.freq * wave_params_.t);
+        command.kp = 5.;
+      }
+      else
+      {
+        command.position_ref = 0;
+        command.velocity_ref = 0;
+        command.kp = 1;
+        brought_to_init_ = pos_error_.norm() < 2e-1;
+        std::cout << "Error Norm: " << pos_error_.norm() << std::endl;
+      }
 
-    msg_robot_command_.motor_commands.push_back(command);
-  }
-  wave_params_.t += wave_params_.dt;
+      command.kd = 0.1;
+      command.i_sat = 4.;
 
-  if (got_initial_position_)
-  {
+      msg_robot_command_.motor_commands.push_back(command);
+    }
+    wave_params_.t += wave_params_.dt;
     pub_robot_command_->publish(msg_robot_command_);
   }
 }
 
 void ExampleRobot::callbackRobotState(const odri_msgs::msg::RobotState::SharedPtr msg)
 {
-  if (!got_initial_position_)
-  {
-    wave_params_.init_pos[0] = msg->motor_states[0].position;
-    wave_params_.init_pos[1] = msg->motor_states[1].position;
+  pos_error_(0) = msg->motor_states[0].position;
+  pos_error_(1) = msg->motor_states[1].position;
+}
 
-    counter_initial_position_++;
-    if (counter_initial_position_ >= 100)
+rcl_interfaces::msg::SetParametersResult ExampleRobot::callbackParameters(
+    const std::vector<rclcpp::Parameter> &parameters)
+{
+  rcl_interfaces::msg::SetParametersResult result;
+  result.successful = true;
+  result.reason = "success";
+
+  for (const auto &param : parameters)
+  {
+    if (param.get_name() == "publish_commands")
     {
-      RCLCPP_INFO_STREAM(get_logger(), "Got initial position. Motor 1: " << wave_params_.init_pos[0] << "Motor 2: " << wave_params_.init_pos[1]);
-      got_initial_position_ = true;
+      params_.publish_commands = param.as_bool();
+      if (params_.publish_commands)
+      {
+
+        while (!client_odri_interface_->wait_for_service(std::chrono::seconds(1)))
+        {
+          RCLCPP_INFO(this->get_logger(), "service not available, waiting again...");
+        }
+
+        auto request = std::make_shared<odri_msgs::srv::TransitionCommand::Request>();
+        request->command = "enable";
+        auto response_received_callback = [this](rclcpp::Client<odri_msgs::srv::TransitionCommand>::SharedFuture future)
+        {
+          auto result = future.get();
+          params_.publish_commands = result->result == "enabled";
+          RCLCPP_INFO_STREAM(get_logger(), "Result: " << result->result);
+        };
+        auto res_client = client_odri_interface_->async_send_request(request, response_received_callback);
+      }
     }
   }
+  return result;
 }
 
 int main(int argc, char *argv[])

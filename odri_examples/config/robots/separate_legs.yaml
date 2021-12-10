@@ -22,7 +22,7 @@ robot:
 joint_calibrator:
     # Can be either POS, NEG, ALT or AUTO
     search_methods: [
-      AUTO, AUTO
+      POS, POS
     ]
     position_offsets: [
         0.0, 0.0
