@@ -9,13 +9,13 @@ RobotInterface::RobotInterface(const std::string& node_name) : rclcpp::Node(node
     odri_robot_->Start();
     odri_robot_->WaitUntilReady();
 
-    service_sm_transition_ = create_service<odri_msgs::srv::TransitionCommand>(
+    service_sm_transition_ = create_service<odri_ros2_msgs::srv::TransitionCommand>(
         std::string(std::string(get_name()) + "/state_transition").c_str(),
         std::bind(&RobotInterface::transitionRequest, this, std::placeholders::_1, std::placeholders::_2),
         rmw_qos_profile_services_default);
 
-    pub_robot_state_     = create_publisher<odri_msgs::msg::RobotState>("robot_state", 1);
-    subs_motor_commands_ = create_subscription<odri_msgs::msg::RobotCommand>(
+    pub_robot_state_     = create_publisher<odri_ros2_msgs::msg::RobotState>("robot_state", 1);
+    subs_motor_commands_ = create_subscription<odri_ros2_msgs::msg::RobotCommand>(
         "robot_command", rclcpp::QoS(1),
         std::bind(&RobotInterface::callbackRobotCommand, this, std::placeholders::_1));
 
@@ -60,8 +60,8 @@ void RobotInterface::callbackTimerSendCommands()
     robot_state_msg_.header.stamp = get_clock()->now();
     robot_state_msg_.motor_states.clear();
 
-    for (std::size_t i = 0; i < positions_.size(); ++i) {
-        odri_msgs::msg::MotorState m_state;
+    for (long int i = 0; i < positions_.size(); ++i) {
+        odri_ros2_msgs::msg::MotorState m_state;
 
         m_state.position = positions_(i);
         m_state.velocity = velocities_(i);
@@ -72,6 +72,7 @@ void RobotInterface::callbackTimerSendCommands()
 
     switch (sm_active_state_) {
         case SmStates::Enabled:
+        {
             odri_robot_->joints->SetTorques(des_torques_);  // WARNING: mixing current and torques. Change the msg
             odri_robot_->joints->SetDesiredPositions(des_positions_);
             odri_robot_->joints->SetDesiredVelocities(des_velocities_);
@@ -80,8 +81,10 @@ void RobotInterface::callbackTimerSendCommands()
             odri_robot_->joints->SetMaximumCurrents(
                 max_currents_(0));  // WARNING: Max current is common for all joints
             break;
+        }
         case SmStates::Idle:
         case SmStates::Calibrating:
+        {
             Eigen::VectorXd vec_zero = Eigen::VectorXd::Zero(odri_robot_->GetJoints()->GetNumberMotors());
             odri_robot_->joints->SetTorques(vec_zero);
             odri_robot_->joints->SetDesiredPositions(vec_zero);
@@ -89,15 +92,18 @@ void RobotInterface::callbackTimerSendCommands()
             odri_robot_->joints->SetPositionGains(vec_zero);
             odri_robot_->joints->SetVelocityGains(vec_zero);
             break;
+        }
+        default :
+            break;
     }
 
     odri_robot_->SendCommand();
 }
 
-void RobotInterface::callbackRobotCommand(const odri_msgs::msg::RobotCommand::SharedPtr msg)
+void RobotInterface::callbackRobotCommand(const odri_ros2_msgs::msg::RobotCommand::SharedPtr msg)
 {
     for (std::size_t i = 0; i < msg->motor_commands.size(); ++i) {
-        des_torques_(i)    = msg->motor_commands[i].current_ref;
+        des_torques_(i)    = msg->motor_commands[i].torque_ref;
         des_positions_(i)  = msg->motor_commands[i].position_ref;
         des_velocities_(i) = msg->motor_commands[i].velocity_ref;
         des_pos_gains_(i)  = msg->motor_commands[i].kp;
@@ -106,8 +112,8 @@ void RobotInterface::callbackRobotCommand(const odri_msgs::msg::RobotCommand::Sh
     }
 }
 
-void RobotInterface::transitionRequest(const std::shared_ptr<odri_msgs::srv::TransitionCommand::Request>  request,
-                                       const std::shared_ptr<odri_msgs::srv::TransitionCommand::Response> response)
+void RobotInterface::transitionRequest(const std::shared_ptr<odri_ros2_msgs::srv::TransitionCommand::Request>  request,
+                                       const std::shared_ptr<odri_ros2_msgs::srv::TransitionCommand::Response> response)
 {
     RCLCPP_INFO_STREAM(get_logger(), "Service request received");
 
@@ -208,7 +214,7 @@ bool RobotInterface::smCalibrateFromCalibrating(std::string& message)
     RCLCPP_INFO_STREAM(get_logger(), "\nThese are the offsets");
     Eigen::VectorXd current_pos = odri_robot_->GetJoints()->GetPositions();
 
-    for (size_t i = 0; i < current_pos.size(); i++) {
+    for (long int i = 0; i < current_pos.size(); i++) {
         RCLCPP_INFO_STREAM(get_logger(), "Joint " << i << ": " << current_pos(i));
     }
 
