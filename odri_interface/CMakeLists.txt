@@ -14,7 +14,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(Eigen3 REQUIRED)
-find_package(odri_msgs REQUIRED)
+find_package(odri_ros2_msgs REQUIRED)
 find_package(odri_control_interface)
 
 set(ODRI_INTERFACE_SRC src/robot_interface.cpp)
@@ -22,7 +22,7 @@ set(ODRI_INTERFACE_SRC src/robot_interface.cpp)
 include_directories(include ${ODRI_CONTROL_INTERFACE_DIRS} ${EIGEN3_INCLUDE_DIR})
 
 add_executable(robot_interface ${ODRI_INTERFACE_SRC})
-ament_target_dependencies(robot_interface rclcpp odri_msgs)
+ament_target_dependencies(robot_interface rclcpp odri_ros2_msgs)
 target_link_libraries(robot_interface odri_control_interface::odri_control_interface)
 
 if(BUILD_TESTING)

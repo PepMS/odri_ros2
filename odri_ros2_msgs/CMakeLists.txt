@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(odri_msgs)
+project(odri_ros2_msgs)
 
 # Default to C++14
 if(NOT CMAKE_CXX_STANDARD)
@@ -26,6 +26,8 @@ rosidl_generate_interfaces(
   "interfaces/msg/MasterBoardCommand.msg"
   "interfaces/msg/RobotCommand.msg"
   "interfaces/msg/RobotState.msg"
+  "interfaces/msg/RobotFullState.msg"
+  "interfaces/msg/StateCommand.msg"
   "interfaces/srv/TransitionCommand.srv"
   DEPENDENCIES
   std_msgs)
