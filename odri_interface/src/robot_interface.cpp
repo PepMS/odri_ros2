@@ -2,17 +2,12 @@
 
 namespace odri_interface
 {
-RobotInterface::RobotInterface(const std::string& node_name) : rclcpp::Node(node_name)
+RobotInterface::RobotInterface(const std::string& node_name) : Node{node_name}, StateMachineInterface(node_name)
 {
     declareParameters();
     odri_robot_ = odri_control_interface::RobotFromYamlFile(params_.robot_yaml_path);
     odri_robot_->Start();
     odri_robot_->WaitUntilReady();
-
-    service_sm_transition_ = create_service<odri_ros2_msgs::srv::TransitionCommand>(
-        std::string(std::string(get_name()) + "/state_transition").c_str(),
-        std::bind(&RobotInterface::transitionRequest, this, std::placeholders::_1, std::placeholders::_2),
-        rmw_qos_profile_services_default);
 
     pub_robot_state_     = create_publisher<odri_ros2_msgs::msg::RobotState>("robot_state", 1);
     subs_motor_commands_ = create_subscription<odri_ros2_msgs::msg::RobotCommand>(
@@ -32,7 +27,26 @@ RobotInterface::RobotInterface(const std::string& node_name) : rclcpp::Node(node
     des_vel_gains_  = positions_;
     max_currents_   = positions_;
 
-    sm_active_state_ = SmStates::Idle;
+    // Add extra states to default state machine
+    state_machine_->addState("calibrating_offsets");
+
+    state_machine_->addTransition("start_calibrating_offsets", "idle", "calibrating_offsets");
+    state_machine_->assignTransitionCallback("start_calibrating_offsets",
+                                             &RobotInterface::transStartCalibratingOffsetsCallback, this);
+
+    state_machine_->addTransition("end_calibrating_offsets", "calibrating_offsets", "idle");
+    state_machine_->assignTransitionCallback("end_calibrating_offsets",
+                                             &RobotInterface::transEndCalibratingOffsetsCallback, this);
+
+    state_machine_->addState("calibrating_safe_configuration");
+
+    state_machine_->addTransition("start_calibrating_safe_configuration", "idle", "calibrating_safe_configuration");
+    state_machine_->assignTransitionCallback("start_calibrating_safe_configuration",
+                                             &RobotInterface::transStartCalibratingSafeConfigurationCallback, this);
+
+    state_machine_->addTransition("end_calibrating_safe_configuration", "calibrating_safe_configuration", "idle");
+    state_machine_->assignTransitionCallback("end_calibrating_safe_configuration",
+                                             &RobotInterface::transEndCalibratingSafeConfigurationCallback, this);
 }
 
 RobotInterface::~RobotInterface() {}
@@ -48,6 +62,17 @@ void RobotInterface::declareParameters()
     int n_slaves;
     get_parameter<int>("n_slaves", n_slaves);
     params_.n_slaves = n_slaves;
+
+    std::vector<double> safe_pos_default(params_.n_slaves * 2, 0.0);
+    declare_parameter<std::vector<double>>("safe_configuration", safe_pos_default);
+    declare_parameter<double>("safe_kp", 0.5);
+    declare_parameter<double>("safe_kd", 0.5);
+
+    std::vector<double> safe_pos;
+    get_parameter<std::vector<double>>("safe_configuration", safe_pos);
+    params_.safe_configuration = Eigen::Map<Eigen::VectorXd>(safe_pos.data(), params_.n_slaves * 2);
+    get_parameter<double>("safe_kp", params_.safe_kp);
+    get_parameter<double>("safe_kd", params_.safe_kd);
 }
 
 void RobotInterface::callbackTimerSendCommands()
@@ -70,31 +95,33 @@ void RobotInterface::callbackTimerSendCommands()
     }
     pub_robot_state_->publish(robot_state_msg_);
 
-    switch (sm_active_state_) {
-        case SmStates::Enabled:
-        {
-            odri_robot_->joints->SetTorques(des_torques_);  // WARNING: mixing current and torques. Change the msg
-            odri_robot_->joints->SetDesiredPositions(des_positions_);
-            odri_robot_->joints->SetDesiredVelocities(des_velocities_);
-            odri_robot_->joints->SetPositionGains(des_pos_gains_);
-            odri_robot_->joints->SetVelocityGains(des_vel_gains_);
-            odri_robot_->joints->SetMaximumCurrents(
-                max_currents_(0));  // WARNING: Max current is common for all joints
-            break;
-        }
-        case SmStates::Idle:
-        case SmStates::Calibrating:
-        {
-            Eigen::VectorXd vec_zero = Eigen::VectorXd::Zero(odri_robot_->GetJoints()->GetNumberMotors());
-            odri_robot_->joints->SetTorques(vec_zero);
-            odri_robot_->joints->SetDesiredPositions(vec_zero);
-            odri_robot_->joints->SetDesiredVelocities(vec_zero);
-            odri_robot_->joints->SetPositionGains(vec_zero);
-            odri_robot_->joints->SetVelocityGains(vec_zero);
-            break;
-        }
-        default :
-            break;
+    Eigen::VectorXd vec_zero = Eigen::VectorXd::Zero(odri_robot_->GetJoints()->GetNumberMotors());
+    if (state_machine_->getStateActive() == "idle" or state_machine_->getStateActive() == "calibrating") {
+        odri_robot_->joints->SetTorques(vec_zero);
+        odri_robot_->joints->SetDesiredPositions(vec_zero);
+        odri_robot_->joints->SetDesiredVelocities(vec_zero);
+        odri_robot_->joints->SetPositionGains(vec_zero);
+        odri_robot_->joints->SetVelocityGains(vec_zero);
+    } else if (state_machine_->getStateActive() == "enabled") {
+        des_torques_.setZero();
+        des_positions_  = params_.safe_configuration;
+        des_velocities_ = (params_.safe_configuration - positions_) / 2.5;
+        des_pos_gains_.setConstant(params_.safe_kp);
+        des_vel_gains_.setConstant(params_.safe_kd);
+
+        odri_robot_->joints->SetTorques(vec_zero);
+        odri_robot_->joints->SetDesiredPositions(des_positions_);
+        odri_robot_->joints->SetDesiredVelocities(des_velocities_);
+        odri_robot_->joints->SetPositionGains(des_pos_gains_);
+        odri_robot_->joints->SetVelocityGains(des_vel_gains_);
+        
+    } else if (state_machine_->getStateActive() == "running") {
+        odri_robot_->joints->SetTorques(des_torques_);
+        odri_robot_->joints->SetDesiredPositions(des_positions_);
+        odri_robot_->joints->SetDesiredVelocities(des_velocities_);
+        odri_robot_->joints->SetPositionGains(des_pos_gains_);
+        odri_robot_->joints->SetVelocityGains(des_vel_gains_);
+        odri_robot_->joints->SetMaximumCurrents(max_currents_(0));  // WARNING: Max current is common for all joints
     }
 
     odri_robot_->SendCommand();
@@ -102,153 +129,113 @@ void RobotInterface::callbackTimerSendCommands()
 
 void RobotInterface::callbackRobotCommand(const odri_ros2_msgs::msg::RobotCommand::SharedPtr msg)
 {
-    for (std::size_t i = 0; i < msg->motor_commands.size(); ++i) {
-        des_torques_(i)    = msg->motor_commands[i].torque_ref;
-        des_positions_(i)  = msg->motor_commands[i].position_ref;
-        des_velocities_(i) = msg->motor_commands[i].velocity_ref;
-        des_pos_gains_(i)  = msg->motor_commands[i].kp;
-        des_vel_gains_(i)  = msg->motor_commands[i].kd;
-        max_currents_(i)   = msg->motor_commands[i].i_sat;
-    }
-}
-
-void RobotInterface::transitionRequest(const std::shared_ptr<odri_ros2_msgs::srv::TransitionCommand::Request>  request,
-                                       const std::shared_ptr<odri_ros2_msgs::srv::TransitionCommand::Response> response)
-{
-    RCLCPP_INFO_STREAM(get_logger(), "Service request received");
-
-    SmTransitions command = SmTransitions::NbTransitions;
-    if (sm_transitions_map.find(request->command) != sm_transitions_map.end()) {
-        command = sm_transitions_map.at(request->command);
-    }
-
-    switch (command) {
-        case SmTransitions::Enable:
-            response->accepted = smEnable(response->message);
-            if (response->accepted) {
-                sm_active_state_ = SmStates::Enabled;
-            }
-            break;
-
-        case SmTransitions::Disable:
-            response->accepted = smDisable(response->message);
-            if (response->accepted) {
-                sm_active_state_ = SmStates::Idle;
-            }
-            break;
-
-        case SmTransitions::Calibrate:
-            if (sm_active_state_ == SmStates::Idle) {
-                response->accepted = smCalibrateFromIdle(response->message);
-                if (response->accepted) {
-                    sm_active_state_ = SmStates::Calibrating;
-                }
-            } else if (sm_active_state_ == SmStates::Calibrating) {
-                response->accepted = smCalibrateFromCalibrating(response->message);
-                if (response->accepted) {
-                    sm_active_state_ = SmStates::Idle;
-                }
-            } else {
-                response->accepted = false;
-                response->message  = "Cannot CALIBRATE the odri Interface. It is not in the IDLE/CALIBRATING state.";
-            }
-            break;
-        default:
-            response->accepted = false;
-            response->message  = "Command: " + request->command +
-                                " does not exist. Possible options are: 'enable'|'disable'|'calibrate'";
-            RCLCPP_WARN_STREAM(get_logger(), response->message);
-            break;
-    }
-
-    response->result = sm_states_map.at(sm_active_state_);
-    RCLCPP_WARN_STREAM(get_logger(), response->message);
-}
-
-bool RobotInterface::smEnable(std::string& message)
-{
-    if (sm_active_state_ == SmStates::Idle) {
-        if (odri_robot_->GetJoints()->SawAllIndices()) {
-            message = "ODRI enabled";
-            return true;
-        } else {
-            message = "Cannot enable ODRI. Run calibration first.";
-            return false;
+    if (state_machine_->getStateActive() == "running") {
+        for (std::size_t i = 0; i < msg->motor_commands.size(); ++i) {
+            des_torques_(i)    = msg->motor_commands[i].torque_ref;
+            des_positions_(i)  = msg->motor_commands[i].position_ref;
+            des_velocities_(i) = msg->motor_commands[i].velocity_ref;
+            des_pos_gains_(i)  = msg->motor_commands[i].kp;
+            des_vel_gains_(i)  = msg->motor_commands[i].kd;
+            max_currents_(i)   = msg->motor_commands[i].i_sat;
         }
-    } else {
-        message = "Cannot ENABLE the odri Interface. It is not in the IDLE state.";
-        return false;
     }
 }
 
-bool RobotInterface::smDisable(std::string& message)
+bool RobotInterface::transEnableCallback(std::string& message)
 {
-    if (sm_active_state_ != SmStates::Idle) {
-        message = "ODRI disabled";
-        return true;
-    } else {
-        message = "ODRI interface is already in the IDLE state.";
-        return false;
+    if (!odri_robot_->GetJoints()->SawAllIndices()) {
+        RCLCPP_INFO_STREAM(get_logger(), "\nEnable: Finding indexes and going to zero position");
+
+        odri_robot_->RunCalibration(params_.safe_configuration);
     }
+
+    // des_torques_.setZero();
+    // des_positions_  = positions_;
+    // des_velocities_ = (params_.safe_configuration - positions_) / 2.5;
+    // des_pos_gains_.setConstant(5);
+    // des_vel_gains_.setConstant(0.5);
+
+    message = "ODRI enabled successful";
+    return true;
 }
 
-bool RobotInterface::smCalibrateFromIdle(std::string& message)
+bool RobotInterface::transDisableCallback(std::string& message) { return true; }
+
+bool RobotInterface::transStartCallback(std::string& message) { return true; }
+
+bool RobotInterface::transStopCallback(std::string& message) { return true; }
+
+bool RobotInterface::transStartCalibratingOffsetsCallback(std::string& message)
 {
     Eigen::VectorXd zero_vec = Eigen::VectorXd::Zero(odri_robot_->GetJoints()->GetNumberMotors());
     odri_robot_->GetJoints()->SetPositionOffsets(zero_vec);
 
-    RCLCPP_INFO_STREAM(get_logger(), "\nCalibration procedure: Finding indexes...");
+    RCLCPP_INFO_STREAM(get_logger(), "\n[Calibrating offsets] Finding indexes...");
     odri_robot_->RunCalibration(zero_vec);
 
     RCLCPP_INFO_STREAM(get_logger(),
-                       "\nCalibration procedure: Put all joints in their respective zero positions. Call state "
-                       "transition service with 'calibrate' again");
+                       "\n[Calibrating offsets] follow the steps: "
+                       "\n \t1. Put all joints in their respective zero positions. "
+                       "\n \t2. Call transition service with 'end_calibration'"
+                       "\n \t3. Update the printed offsets in the YAML file");
 
-    message = "Calibration running. Do required steps.";
+    message = "Calibrating offsets running. Do required steps.";
 
     return true;
 }
 
-bool RobotInterface::smCalibrateFromCalibrating(std::string& message)
+bool RobotInterface::transEndCalibratingOffsetsCallback(std::string& message)
 {
-    RCLCPP_INFO_STREAM(get_logger(), "\nThese are the offsets");
+    RCLCPP_INFO_STREAM(get_logger(), "\nThese are the offsets. Add them to the YAML file");
+    Eigen::VectorXd current_pos = odri_robot_->GetJoints()->GetPositions();
+
+    for (long int i = 0; i < current_pos.size(); i++) {
+        RCLCPP_INFO_STREAM(get_logger(), "Joint " << i << ": " << -current_pos(i));
+    }
+
+    odri_robot_->GetJoints()->SetPositionOffsets(-current_pos);
+
+    message = "Calibrating offsets done";
+
+    return true;
+}
+
+bool RobotInterface::transStartCalibratingSafeConfigurationCallback(std::string& message)
+{
+    if (!odri_robot_->GetJoints()->SawAllIndices()) {
+        RCLCPP_INFO_STREAM(get_logger(),
+                           "\n [Safe configuration calibration] Finding indexes and going to zero position");
+
+        Eigen::VectorXd zero_vec = Eigen::VectorXd::Zero(odri_robot_->GetJoints()->GetNumberMotors());
+        odri_robot_->RunCalibration(zero_vec);
+    }
+
+    RCLCPP_INFO_STREAM(
+        get_logger(),
+        "\n[Safe configuration calibration] follow the steps:"
+        "\n \t1. Put the joints in the safe configuration"
+        "\n \t2. Call transition service with 'end_calibrating_safe_configuration'"
+        "\n \t3. Update the field 'safe_configuration' in the yaml file with the printed configuration");
+
+    message = "Calibrating safe configuration running. Do required steps.";
+
+    return true;
+}
+
+bool RobotInterface::transEndCalibratingSafeConfigurationCallback(std::string& message)
+{
+    RCLCPP_INFO_STREAM(get_logger(),
+                       "\nThese are the joint values in the safe configuration. Add them to the YAML file");
     Eigen::VectorXd current_pos = odri_robot_->GetJoints()->GetPositions();
 
     for (long int i = 0; i < current_pos.size(); i++) {
         RCLCPP_INFO_STREAM(get_logger(), "Joint " << i << ": " << current_pos(i));
     }
 
-    odri_robot_->GetJoints()->SetPositionOffsets(-current_pos);
-
-    message = "Calibration done";
+    message = "Calibrating safe configuration done";
 
     return true;
 }
-
-std::map<std::string, RobotInterface::SmTransitions> RobotInterface::createSmTransitionsMap()
-{
-    std::map<std::string, SmTransitions> m;
-    m["enable"]    = SmTransitions::Enable;
-    m["disable"]   = SmTransitions::Disable;
-    m["calibrate"] = SmTransitions::Calibrate;
-
-    return m;
-}
-
-std::map<RobotInterface::SmStates, std::string> RobotInterface::createSmStatesMap()
-{
-    std::map<SmStates, std::string> m;
-    m[SmStates::Idle]        = "idle";
-    m[SmStates::Enabled]     = "enabled";
-    m[SmStates::Calibrating] = "calibrating";
-
-    return m;
-}
-
-const std::map<std::string, RobotInterface::SmTransitions> RobotInterface::sm_transitions_map =
-    RobotInterface::createSmTransitionsMap();
-const std::map<RobotInterface::SmStates, std::string> RobotInterface::sm_states_map =
-    RobotInterface::createSmStatesMap();
 
 }  // namespace odri_interface
 
