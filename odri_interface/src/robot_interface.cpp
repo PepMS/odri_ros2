@@ -65,12 +65,16 @@ void RobotInterface::declareParameters()
 
     std::vector<double> safe_pos_default(params_.n_slaves * 2, 0.0);
     declare_parameter<std::vector<double>>("safe_configuration", safe_pos_default);
+    declare_parameter<double>("safe_torque", 0.0);
+    declare_parameter<double>("safe_current", 0.0);
     declare_parameter<double>("safe_kp", 0.5);
     declare_parameter<double>("safe_kd", 0.5);
 
     std::vector<double> safe_pos;
     get_parameter<std::vector<double>>("safe_configuration", safe_pos);
     params_.safe_configuration = Eigen::Map<Eigen::VectorXd>(safe_pos.data(), params_.n_slaves * 2);
+    get_parameter<double>("safe_torque", params_.safe_torque);
+    get_parameter<double>("safe_current", params_.safe_current);
     get_parameter<double>("safe_kp", params_.safe_kp);
     get_parameter<double>("safe_kd", params_.safe_kd);
 }
@@ -103,18 +107,18 @@ void RobotInterface::callbackTimerSendCommands()
         odri_robot_->joints->SetPositionGains(vec_zero);
         odri_robot_->joints->SetVelocityGains(vec_zero);
     } else if (state_machine_->getStateActive() == "enabled") {
-        des_torques_.setZero();
+        des_torques_    = params_.safe_configuration.cwiseSign() * params_.safe_torque;
         des_positions_  = params_.safe_configuration;
-        des_velocities_ = (params_.safe_configuration - positions_) / 2.5;
+        des_velocities_ = (params_.safe_configuration - positions_) / 1.0;
         des_pos_gains_.setConstant(params_.safe_kp);
         des_vel_gains_.setConstant(params_.safe_kd);
 
-        odri_robot_->joints->SetTorques(vec_zero);
+        odri_robot_->joints->SetTorques(des_torques_);
         odri_robot_->joints->SetDesiredPositions(des_positions_);
         odri_robot_->joints->SetDesiredVelocities(des_velocities_);
         odri_robot_->joints->SetPositionGains(des_pos_gains_);
         odri_robot_->joints->SetVelocityGains(des_vel_gains_);
-        
+
     } else if (state_machine_->getStateActive() == "running") {
         odri_robot_->joints->SetTorques(des_torques_);
         odri_robot_->joints->SetDesiredPositions(des_positions_);
@@ -123,7 +127,6 @@ void RobotInterface::callbackTimerSendCommands()
         odri_robot_->joints->SetVelocityGains(des_vel_gains_);
         odri_robot_->joints->SetMaximumCurrents(max_currents_(0));  // WARNING: Max current is common for all joints
     }
-
     odri_robot_->SendCommand();
 }
 

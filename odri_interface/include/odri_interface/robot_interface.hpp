@@ -44,11 +44,11 @@ class RobotInterface : public hidro_ros2_utils::StateMachineInterface
     virtual bool transDisableCallback(std::string& message) override;
     virtual bool transStopCallback(std::string& message) override;
 
-    bool         transStartCalibratingOffsetsCallback(std::string& message);
-    bool         transEndCalibratingOffsetsCallback(std::string& message);
+    bool transStartCalibratingOffsetsCallback(std::string& message);
+    bool transEndCalibratingOffsetsCallback(std::string& message);
 
-    bool         transStartCalibratingSafeConfigurationCallback(std::string& message);
-    bool         transEndCalibratingSafeConfigurationCallback(std::string& message);
+    bool transStartCalibratingSafeConfigurationCallback(std::string& message);
+    bool transEndCalibratingSafeConfigurationCallback(std::string& message);
 
     private:
     rclcpp::TimerBase::SharedPtr timer_send_commands_;
@@ -77,8 +77,10 @@ class RobotInterface : public hidro_ros2_utils::StateMachineInterface
         std::size_t     n_slaves;      // rm (yaml)
         std::string     robot_yaml_path;
         Eigen::VectorXd safe_configuration;
-        double safe_kp;
-        double safe_kd;
+        double          safe_kp;
+        double          safe_kd;
+        double          safe_torque;
+        double          safe_current;
     } params_;
 };
 
