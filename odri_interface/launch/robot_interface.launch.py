@@ -33,7 +33,8 @@ def generate_launch_description():
                 output='screen',
                 emulate_tty=True,
                 parameters=[LaunchConfiguration('yaml_path')],
-                remappings=remappings)
+                remappings=remappings,
+                namespace='odri')
 
     ld.add_action(node)
 
