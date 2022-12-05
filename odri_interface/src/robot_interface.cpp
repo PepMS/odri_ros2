@@ -1,11 +1,25 @@
 #include "odri_interface/robot_interface.hpp"
 
+#include "ament_index_cpp/get_package_share_directory.hpp"
+
 namespace odri_interface
 {
 RobotInterface::RobotInterface(const std::string& node_name) : Node{node_name}, StateMachineInterface(node_name)
 {
     declareParameters();
-    odri_robot_ = odri_control_interface::RobotFromYamlFile(params_.robot_yaml_path);
+
+    // Build the robot yaml path
+    std::string yaml_path;
+    try {
+        yaml_path = ament_index_cpp::get_package_share_directory("odri_interface");
+
+    } catch (const std::exception& e) {
+        // Should never be thrown. It is this same package.
+        std::cerr << "Package 'odri_interface' not found: \n" + std::string(e.what()) << '\n';
+    }
+    yaml_path += "/config/robots/" + params_.robot_yaml_name;
+
+    odri_robot_ = odri_control_interface::RobotFromYamlFile(yaml_path);
     odri_robot_->Start();
     odri_robot_->WaitUntilReady();
 
@@ -14,7 +28,7 @@ RobotInterface::RobotInterface(const std::string& node_name) : Node{node_name}, 
         "robot_command", rclcpp::QoS(1),
         std::bind(&RobotInterface::callbackRobotCommand, this, std::placeholders::_1));
 
-    timer_send_commands_ = create_wall_timer(std::chrono::duration<double, std::milli>(1),
+    timer_send_commands_ = create_wall_timer(std::chrono::duration<double, std::milli>(2),
                                              std::bind(&RobotInterface::callbackTimerSendCommands, this));
 
     positions_  = Eigen::VectorXd::Zero(odri_robot_->joints->GetNumberMotors());
@@ -53,12 +67,11 @@ RobotInterface::~RobotInterface() {}
 
 void RobotInterface::declareParameters()
 {
-    declare_parameter<std::string>("robot_yaml_path", "");
-    declare_parameter<std::string>("adapter_name", "enp61s0");
+    declare_parameter<std::string>("robot_yaml_name", "");
     declare_parameter<int>("n_slaves", 1);
 
-    get_parameter<std::string>("robot_yaml_path", params_.robot_yaml_path);
-    get_parameter<std::string>("adapter_name", params_.adapter_name);
+    get_parameter<std::string>("robot_yaml_name", params_.robot_yaml_name);
+
     int n_slaves;
     get_parameter<int>("n_slaves", n_slaves);
     params_.n_slaves = n_slaves;

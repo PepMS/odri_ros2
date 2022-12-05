@@ -7,8 +7,7 @@
       },
       "defines": [],
       "compilerPath": "/usr/bin/gcc",
-      // "compileCommands": "${workspaceFolder}/../../build/compile_commands.json",
-      "compileCommands": "/home/pepms/wsros2/mpc-ws/build/compile_commands.json",
+      "compileCommands": "${workspaceFolder}/../../build/compile_commands.json",
       "cStandard": "c99",
       "cppStandard": "c++14",
       "intelliSenseMode": "clang-x64"

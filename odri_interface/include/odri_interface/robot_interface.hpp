@@ -73,9 +73,8 @@ class RobotInterface : public hidro_ros2_utils::StateMachineInterface
     Eigen::VectorXd max_currents_;
 
     struct Params {
-        std::string     adapter_name;  // rm (yaml)
         std::size_t     n_slaves;      // rm (yaml)
-        std::string     robot_yaml_path;
+        std::string     robot_yaml_name;
         Eigen::VectorXd safe_configuration;
         double          safe_kp;
         double          safe_kd;
