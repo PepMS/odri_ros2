@@ -4,19 +4,20 @@ robot:
         motor_numbers: [0, 1]
         motor_constants: 0.025
         gear_ratios: 9.
-        max_currents: 1.
+        max_currents: 4.
         reverse_polarities: [true, true]
-        lower_joint_limits: [-3.4, -3.4]
-        upper_joint_limits: [+3.4, +3.4]
+        lower_joint_limits: [-1.5, -1.5]
+        upper_joint_limits: [+1.5, +1.5]
         max_joint_velocities: 80.
         safety_damping: 0.5
     imu:
         rotate_vector: [1, 2, 3]
         orientation_vector: [1, 2, 3, 4]
 joint_calibrator:
-    search_methods: [POS, POS] # Can be either POS, NEG, ALT or AUTO
-    position_offsets: [0.350556, 0.256005]
-    Kp: 0.0
+    search_methods: [POS, POS] # Can be either POS, NEG, ALT or AUTO.
+    position_offsets: [0.113593, 0.318126]
+    # position_offsets: [0.0, 0.0]
+    Kp: 0.5
     Kd: 5.0
-    T: 2.5
+    T: 1.0
     dt: 0.001

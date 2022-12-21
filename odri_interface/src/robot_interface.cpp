@@ -34,12 +34,12 @@ RobotInterface::RobotInterface(const std::string& node_name) : Node{node_name}, 
     positions_  = Eigen::VectorXd::Zero(odri_robot_->joints->GetNumberMotors());
     velocities_ = positions_;
 
-    des_torques_    = positions_;
-    des_positions_  = positions_;
-    des_velocities_ = positions_;
-    des_pos_gains_  = positions_;
-    des_vel_gains_  = positions_;
-    max_currents_   = positions_;
+    des_torques_    = Eigen::VectorXd::Zero(odri_robot_->joints->GetNumberMotors());
+    des_positions_  = Eigen::VectorXd::Zero(odri_robot_->joints->GetNumberMotors());
+    des_velocities_ = Eigen::VectorXd::Zero(odri_robot_->joints->GetNumberMotors());
+    des_pos_gains_  = Eigen::VectorXd::Zero(odri_robot_->joints->GetNumberMotors());
+    des_vel_gains_  = Eigen::VectorXd::Zero(odri_robot_->joints->GetNumberMotors());
+    max_currents_   = Eigen::VectorXd::Zero(odri_robot_->joints->GetNumberMotors());
 
     // Add extra states to default state machine
     state_machine_->addState("calibrating_offsets");
@@ -86,6 +86,7 @@ void RobotInterface::declareParameters()
     std::vector<double> safe_pos;
     get_parameter<std::vector<double>>("safe_configuration", safe_pos);
     params_.safe_configuration = Eigen::Map<Eigen::VectorXd>(safe_pos.data(), params_.n_slaves * 2);
+    std::cout << "This is the safe configuration: " << params_.safe_configuration << std::endl;
     get_parameter<double>("safe_torque", params_.safe_torque);
     get_parameter<double>("safe_current", params_.safe_current);
     get_parameter<double>("safe_kp", params_.safe_kp);
@@ -105,28 +106,31 @@ void RobotInterface::callbackTimerSendCommands()
     for (long int i = 0; i < positions_.size(); ++i) {
         odri_ros2_msgs::msg::MotorState m_state;
 
-        m_state.position = positions_(i);
-        m_state.velocity = velocities_(i);
+        m_state.position                = positions_(i);
+        m_state.velocity                = velocities_(i);
+        m_state.is_enabled              = odri_robot_->joints->GetEnabled()(i);
+        m_state.has_index_been_detected = odri_robot_->joints->HasIndexBeenDetected()(i);
 
         robot_state_msg_.motor_states.push_back(m_state);
     }
     pub_robot_state_->publish(robot_state_msg_);
 
     Eigen::VectorXd vec_zero = Eigen::VectorXd::Zero(odri_robot_->GetJoints()->GetNumberMotors());
-    if (state_machine_->getStateActive() == "idle" or state_machine_->getStateActive() == "calibrating") {
+    if (state_machine_->getStateActive() == "idle" || state_machine_->getStateActive() == "calibrating_offsets" ||
+        state_machine_->getStateActive() == "calibrating_safe_configuration") {
         odri_robot_->joints->SetTorques(vec_zero);
         odri_robot_->joints->SetDesiredPositions(vec_zero);
         odri_robot_->joints->SetDesiredVelocities(vec_zero);
         odri_robot_->joints->SetPositionGains(vec_zero);
         odri_robot_->joints->SetVelocityGains(vec_zero);
     } else if (state_machine_->getStateActive() == "enabled") {
-        des_torques_    = params_.safe_configuration.cwiseSign() * params_.safe_torque;
+        // des_torques_    = params_.safe_configuration.cwiseSign() * params_.safe_torque;
         des_positions_  = params_.safe_configuration;
         des_velocities_ = (params_.safe_configuration - positions_) / 1.0;
         des_pos_gains_.setConstant(params_.safe_kp);
         des_vel_gains_.setConstant(params_.safe_kd);
 
-        odri_robot_->joints->SetTorques(des_torques_);
+        // odri_robot_->joints->SetTorques(des_torques_);
         odri_robot_->joints->SetDesiredPositions(des_positions_);
         odri_robot_->joints->SetDesiredVelocities(des_velocities_);
         odri_robot_->joints->SetPositionGains(des_pos_gains_);
@@ -159,11 +163,9 @@ void RobotInterface::callbackRobotCommand(const odri_ros2_msgs::msg::RobotComman
 
 bool RobotInterface::transEnableCallback(std::string& message)
 {
-    if (!odri_robot_->GetJoints()->SawAllIndices()) {
-        RCLCPP_INFO_STREAM(get_logger(), "\nEnable: Finding indexes and going to zero position");
-
-        odri_robot_->RunCalibration(params_.safe_configuration);
-    }
+    RCLCPP_INFO_STREAM(get_logger(), "\nEnable: Finding indexes and going to zero position");
+    Eigen::VectorXd zero_vec = Eigen::VectorXd::Zero(odri_robot_->GetJoints()->GetNumberMotors());
+    odri_robot_->RunCalibration(params_.safe_configuration);
 
     // des_torques_.setZero();
     // des_positions_  = positions_;
@@ -218,13 +220,9 @@ bool RobotInterface::transEndCalibratingOffsetsCallback(std::string& message)
 
 bool RobotInterface::transStartCalibratingSafeConfigurationCallback(std::string& message)
 {
-    if (!odri_robot_->GetJoints()->SawAllIndices()) {
-        RCLCPP_INFO_STREAM(get_logger(),
-                           "\n [Safe configuration calibration] Finding indexes and going to zero position");
-
-        Eigen::VectorXd zero_vec = Eigen::VectorXd::Zero(odri_robot_->GetJoints()->GetNumberMotors());
-        odri_robot_->RunCalibration(zero_vec);
-    }
+    RCLCPP_INFO_STREAM(get_logger(), "\n [Safe configuration calibration] Finding indexes and going to zero position");
+    Eigen::VectorXd zero_vec = Eigen::VectorXd::Zero(odri_robot_->GetJoints()->GetNumberMotors());
+    odri_robot_->RunCalibration(zero_vec);
 
     RCLCPP_INFO_STREAM(
         get_logger(),
