@@ -23,9 +23,9 @@ RobotInterface::RobotInterface(const std::string& node_name) : Node{node_name}, 
     odri_robot_->Start();
     odri_robot_->WaitUntilReady();
 
-    pub_robot_state_     = create_publisher<odri_ros2_msgs::msg::RobotState>("robot_state", 1);
+    pub_robot_state_     = create_publisher<odri_ros2_msgs::msg::RobotState>("robot_state", rclcpp::SensorDataQoS());
     subs_motor_commands_ = create_subscription<odri_ros2_msgs::msg::RobotCommand>(
-        "robot_command", rclcpp::QoS(1),
+        "robot_command", rclcpp::QoS(rclcpp::KeepLast(1)).best_effort().durability_volatile(),
         std::bind(&RobotInterface::callbackRobotCommand, this, std::placeholders::_1));
 
     timer_send_commands_ = create_wall_timer(std::chrono::duration<double, std::milli>(2),
