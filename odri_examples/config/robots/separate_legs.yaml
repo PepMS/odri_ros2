@@ -1,19 +1,13 @@
 robot:
-    interface: enp61s0
+    interface: enxa0cec8792aa5
     joint_modules:
         motor_numbers: [0, 1]
         motor_constants: 0.025
         gear_ratios: 9.
         max_currents: 1.
-        reverse_polarities: [
-            false, false
-        ]
-        lower_joint_limits: [
-            -3.4, -3.4
-        ]
-        upper_joint_limits: [
-            +3.4, +3.4
-        ]
+        reverse_polarities: [false, false]
+        lower_joint_limits: [-3.4, -3.4]
+        upper_joint_limits: [+3.4, +3.4]
         max_joint_velocities: 80.
         safety_damping: 0.5
     imu:
@@ -21,14 +15,9 @@ robot:
         orientation_vector: [1, 2, 3, 4]
 joint_calibrator:
     # Can be either POS, NEG, ALT or AUTO
-    search_methods: [
-      POS, POS
-    ]
-    position_offsets: [
-        0.0, 0.0
-    ]
-    Kp: 5.
-    Kd: 0.1
+    search_methods: [POS, POS]
+    position_offsets: [0.350556, 0.256005]
+    Kp: 10.0
+    Kd: 0.5
     T: 2.5
     dt: 0.001
-

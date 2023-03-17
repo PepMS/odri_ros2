@@ -8,11 +8,12 @@
 
 #include <rclcpp/rclcpp.hpp>
 
+#include "hidro_ros2_utils/state_machine_interface.hpp"
+
 #include "odri_ros2_msgs/msg/driver_state.hpp"
 #include "odri_ros2_msgs/msg/master_board_state.hpp"
 #include "odri_ros2_msgs/msg/robot_command.hpp"
 #include "odri_ros2_msgs/msg/robot_state.hpp"
-#include "odri_ros2_msgs/srv/transition_command.hpp"
 
 #include "odri_control_interface/robot.hpp"
 #include "odri_control_interface/utils.hpp"
@@ -23,7 +24,7 @@
 namespace odri_interface
 {
 
-class RobotInterface : public rclcpp::Node
+class RobotInterface : public hidro_ros2_utils::StateMachineInterface
 {
     public:
     explicit RobotInterface(const std::string& node_name);
@@ -35,13 +36,19 @@ class RobotInterface : public rclcpp::Node
     void callbackTimerSendCommands();
     void callbackRobotCommand(const odri_ros2_msgs::msg::RobotCommand::SharedPtr msg);
 
-    void transitionRequest(const std::shared_ptr<odri_ros2_msgs::srv::TransitionCommand::Request>  request,
-                           const std::shared_ptr<odri_ros2_msgs::srv::TransitionCommand::Response> response);
-
-    bool smEnable(std::string& message);
-    bool smDisable(std::string& message);
     bool smCalibrateFromIdle(std::string& message);
     bool smCalibrateFromCalibrating(std::string& message);
+
+    virtual bool transEnableCallback(std::string& message) override;
+    virtual bool transStartCallback(std::string& message) override;
+    virtual bool transDisableCallback(std::string& message) override;
+    virtual bool transStopCallback(std::string& message) override;
+
+    bool transStartCalibratingOffsetsCallback(std::string& message);
+    bool transEndCalibratingOffsetsCallback(std::string& message);
+
+    bool transStartCalibratingSafeConfigurationCallback(std::string& message);
+    bool transEndCalibratingSafeConfigurationCallback(std::string& message);
 
     private:
     rclcpp::TimerBase::SharedPtr timer_send_commands_;
@@ -49,9 +56,6 @@ class RobotInterface : public rclcpp::Node
     rclcpp::Publisher<odri_ros2_msgs::msg::RobotState>::SharedPtr      pub_robot_state_;
     rclcpp::Subscription<odri_ros2_msgs::msg::RobotCommand>::SharedPtr subs_motor_commands_;
 
-    rclcpp::Service<odri_ros2_msgs::srv::TransitionCommand>::SharedPtr service_sm_transition_;
-
-    std::unique_ptr<MasterBoardInterface>          master_board_if_;
     std::shared_ptr<odri_control_interface::Robot> odri_robot_;
 
     odri_ros2_msgs::msg::RobotState robot_state_msg_;
@@ -69,20 +73,14 @@ class RobotInterface : public rclcpp::Node
     Eigen::VectorXd max_currents_;
 
     struct Params {
-        std::string adapter_name;  // rm (yaml)
-        std::size_t n_slaves;      // rm (yaml)
-        std::string robot_yaml_path;
+        std::size_t     n_slaves;      // rm (yaml)
+        std::string     robot_yaml_name;
+        Eigen::VectorXd safe_configuration;
+        double          safe_kp;
+        double          safe_kd;
+        double          safe_torque;
+        double          safe_current;
     } params_;
-
-    enum class SmStates { Idle, Enabled, Calibrating, NbStates };
-    enum class SmTransitions { Enable, Disable, Calibrate, NbTransitions };
-
-    SmStates                                          sm_active_state_;
-    static const std::map<std::string, SmTransitions> sm_transitions_map;
-    static const std::map<SmStates, std::string>      sm_states_map;
-
-    static std::map<std::string, SmTransitions> createSmTransitionsMap();
-    static std::map<SmStates, std::string>      createSmStatesMap();
 };
 
 }  // namespace odri_interface

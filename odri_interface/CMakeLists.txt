@@ -12,32 +12,45 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
-find_package(rclcpp REQUIRED)
 find_package(Eigen3 REQUIRED)
+find_package(hidro_ros2_utils REQUIRED)
+find_package(odri_control_interface REQUIRED)
 find_package(odri_ros2_msgs REQUIRED)
-find_package(odri_control_interface)
+find_package(rclcpp REQUIRED)
 
-set(ODRI_INTERFACE_SRC src/robot_interface.cpp)
+# ---- NODE: ROBOT INTERFACE ----
+list(APPEND ROBOT_INTERFACE_SRC src/robot_interface.cpp)
 
-include_directories(include ${ODRI_CONTROL_INTERFACE_DIRS} ${EIGEN3_INCLUDE_DIR})
+set(ROBOT_INTERFACE_EXEC_NAME robot_interface)
 
-add_executable(robot_interface ${ODRI_INTERFACE_SRC})
-ament_target_dependencies(robot_interface rclcpp odri_ros2_msgs)
-target_link_libraries(robot_interface odri_control_interface::odri_control_interface)
+add_executable(${ROBOT_INTERFACE_EXEC_NAME} ${ROBOT_INTERFACE_SRC})
 
-if(BUILD_TESTING)
-  find_package(ament_lint_auto REQUIRED)
-  # the following line skips the linter which checks for copyrights uncomment
-  # the line when a copyright and license is not present in all source files
-  # set(ament_cmake_copyright_FOUND TRUE) the following line skips cpplint (only
-  # works in a git repo) uncomment the line when this package is not in a git
-  # repo set(ament_cmake_cpplint_FOUND TRUE)
-  ament_lint_auto_find_test_dependencies()
-endif()
+target_include_directories(
+  ${ROBOT_INTERFACE_EXEC_NAME}
+  PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
 
-install(TARGETS robot_interface DESTINATION lib/${PROJECT_NAME})
+ament_target_dependencies(${ROBOT_INTERFACE_EXEC_NAME} hidro_ros2_utils)
+ament_target_dependencies(${ROBOT_INTERFACE_EXEC_NAME} odri_ros2_msgs)
+ament_target_dependencies(${ROBOT_INTERFACE_EXEC_NAME} rclcpp)
+target_link_libraries(${ROBOT_INTERFACE_EXEC_NAME} odri_control_interface::odri_control_interface)
 
+list(APPEND ${PROJECT_NAME}_INSTALL_TARGETS ${ROBOT_INTERFACE_EXEC_NAME})
+
+# ---- INSTALL TARGETS ----
+
+# Install folders
 install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
 install(DIRECTORY config DESTINATION share/${PROJECT_NAME})
+
+# Install targets
+install(
+  TARGETS ${${PROJECT_NAME}_INSTALL_TARGETS}
+  EXPORT ${PROJECT_NAME}Targets
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib
+  RUNTIME DESTINATION lib/${PROJECT_NAME}
+  INCLUDES
+  DESTINATION include)
 
 ament_package()

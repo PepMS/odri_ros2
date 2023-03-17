@@ -23,7 +23,7 @@ ExampleRobot::ExampleRobot(const std::string &node_name) : Node(node_name)
   got_initial_position_ = false;
   counter_initial_position_ = 0;
 
-  wave_params_.amplitude = M_PI;
+  wave_params_.amplitude = M_PI/4;
   wave_params_.freq = 0.25;
   wave_params_.t = 0;
   wave_params_.dt = 0.001;
