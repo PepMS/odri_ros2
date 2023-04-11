@@ -64,6 +64,8 @@ class RobotInterface : public hidro_ros2_utils::StateMachineInterface
 
     Eigen::VectorXd positions_;
     Eigen::VectorXd velocities_;
+    Eigen::VectorXd sent_torques_;
+    Eigen::VectorXd measured_torques_;
 
     Eigen::VectorXd des_torques_;
     Eigen::VectorXd des_positions_;
@@ -73,7 +75,7 @@ class RobotInterface : public hidro_ros2_utils::StateMachineInterface
     Eigen::VectorXd max_currents_;
 
     struct Params {
-        std::size_t     n_slaves;      // rm (yaml)
+        std::size_t     n_slaves;  // rm (yaml)
         std::string     robot_yaml_name;
         Eigen::VectorXd safe_configuration;
         double          safe_kp;

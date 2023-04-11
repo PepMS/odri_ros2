@@ -31,8 +31,10 @@ RobotInterface::RobotInterface(const std::string& node_name) : Node{node_name}, 
     timer_send_commands_ = create_wall_timer(std::chrono::duration<double, std::milli>(2),
                                              std::bind(&RobotInterface::callbackTimerSendCommands, this));
 
-    positions_  = Eigen::VectorXd::Zero(odri_robot_->joints->GetNumberMotors());
-    velocities_ = positions_;
+    positions_        = Eigen::VectorXd::Zero(odri_robot_->joints->GetNumberMotors());
+    velocities_       = positions_;
+    sent_torques_     = positions_;
+    measured_torques_ = positions_;
 
     des_torques_    = Eigen::VectorXd::Zero(odri_robot_->joints->GetNumberMotors());
     des_positions_  = Eigen::VectorXd::Zero(odri_robot_->joints->GetNumberMotors());
@@ -97,8 +99,10 @@ void RobotInterface::callbackTimerSendCommands()
 {
     odri_robot_->ParseSensorData();
 
-    positions_  = odri_robot_->joints->GetPositions();
-    velocities_ = odri_robot_->joints->GetVelocities();
+    positions_        = odri_robot_->joints->GetPositions();
+    velocities_       = odri_robot_->joints->GetVelocities();
+    sent_torques_     = odri_robot_->joints->GetSentTorques();
+    measured_torques_ = odri_robot_->joints->GetMeasuredTorques();
 
     robot_state_msg_.header.stamp = get_clock()->now();
     robot_state_msg_.motor_states.clear();
@@ -108,6 +112,8 @@ void RobotInterface::callbackTimerSendCommands()
 
         m_state.position                = positions_(i);
         m_state.velocity                = velocities_(i);
+        m_state.sent_torque             = sent_torques_(i);
+        m_state.measured_torque         = measured_torques_(i);
         m_state.is_enabled              = odri_robot_->joints->GetEnabled()(i);
         m_state.has_index_been_detected = odri_robot_->joints->HasIndexBeenDetected()(i);
 
