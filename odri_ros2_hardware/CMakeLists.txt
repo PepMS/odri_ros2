@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(odri_interface)
+project(odri_ros2_hardware)
 
 # Default to C++14
 if(NOT CMAKE_CXX_STANDARD)
@@ -15,7 +15,7 @@ find_package(ament_cmake REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(hidro_ros2_utils REQUIRED)
 find_package(odri_control_interface REQUIRED)
-find_package(odri_ros2_msgs REQUIRED)
+find_package(odri_ros2_interfaces REQUIRED)
 find_package(rclcpp REQUIRED)
 
 # ---- NODE: ROBOT INTERFACE ----
@@ -31,7 +31,7 @@ target_include_directories(
   $<INSTALL_INTERFACE:include>)
 
 ament_target_dependencies(${ROBOT_INTERFACE_EXEC_NAME} hidro_ros2_utils)
-ament_target_dependencies(${ROBOT_INTERFACE_EXEC_NAME} odri_ros2_msgs)
+ament_target_dependencies(${ROBOT_INTERFACE_EXEC_NAME} odri_ros2_interfaces)
 ament_target_dependencies(${ROBOT_INTERFACE_EXEC_NAME} rclcpp)
 target_link_libraries(${ROBOT_INTERFACE_EXEC_NAME} odri_control_interface::odri_control_interface)
 

@@ -1,4 +1,4 @@
-#include "odri_interface/robot_interface.hpp"
+#include "odri_ros2_hardware/robot_interface.hpp"
 
 #include "ament_index_cpp/get_package_share_directory.hpp"
 
@@ -23,8 +23,8 @@ RobotInterface::RobotInterface(const std::string& node_name) : Node{node_name}, 
     odri_robot_->Start();
     odri_robot_->WaitUntilReady();
 
-    pub_robot_state_     = create_publisher<odri_ros2_msgs::msg::RobotState>("robot_state", rclcpp::SensorDataQoS());
-    subs_motor_commands_ = create_subscription<odri_ros2_msgs::msg::RobotCommand>(
+    pub_robot_state_     = create_publisher<odri_ros2_interfaces::msg::RobotState>("robot_state", rclcpp::SensorDataQoS());
+    subs_motor_commands_ = create_subscription<odri_ros2_interfaces::msg::RobotCommand>(
         "robot_command", rclcpp::QoS(rclcpp::KeepLast(1)).best_effort().durability_volatile(),
         std::bind(&RobotInterface::callbackRobotCommand, this, std::placeholders::_1));
 
@@ -104,7 +104,7 @@ void RobotInterface::callbackTimerSendCommands()
     robot_state_msg_.motor_states.clear();
 
     for (long int i = 0; i < positions_.size(); ++i) {
-        odri_ros2_msgs::msg::MotorState m_state;
+        odri_ros2_interfaces::msg::MotorState m_state;
 
         m_state.position                = positions_(i);
         m_state.velocity                = velocities_(i);
@@ -147,7 +147,7 @@ void RobotInterface::callbackTimerSendCommands()
     odri_robot_->SendCommand();
 }
 
-void RobotInterface::callbackRobotCommand(const odri_ros2_msgs::msg::RobotCommand::SharedPtr msg)
+void RobotInterface::callbackRobotCommand(const odri_ros2_interfaces::msg::RobotCommand::SharedPtr msg)
 {
     if (state_machine_->getStateActive() == "running") {
         for (std::size_t i = 0; i < msg->motor_commands.size(); ++i) {

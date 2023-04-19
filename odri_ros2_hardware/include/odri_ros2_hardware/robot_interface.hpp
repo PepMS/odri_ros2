@@ -10,10 +10,10 @@
 
 #include "hidro_ros2_utils/state_machine_interface.hpp"
 
-#include "odri_ros2_msgs/msg/driver_state.hpp"
-#include "odri_ros2_msgs/msg/master_board_state.hpp"
-#include "odri_ros2_msgs/msg/robot_command.hpp"
-#include "odri_ros2_msgs/msg/robot_state.hpp"
+#include "odri_ros2_interfaces/msg/driver_state.hpp"
+#include "odri_ros2_interfaces/msg/master_board_state.hpp"
+#include "odri_ros2_interfaces/msg/robot_command.hpp"
+#include "odri_ros2_interfaces/msg/robot_state.hpp"
 
 #include "odri_control_interface/robot.hpp"
 #include "odri_control_interface/utils.hpp"
@@ -34,7 +34,7 @@ class RobotInterface : public hidro_ros2_utils::StateMachineInterface
     void declareParameters();
 
     void callbackTimerSendCommands();
-    void callbackRobotCommand(const odri_ros2_msgs::msg::RobotCommand::SharedPtr msg);
+    void callbackRobotCommand(const odri_ros2_interfaces::msg::RobotCommand::SharedPtr msg);
 
     bool smCalibrateFromIdle(std::string& message);
     bool smCalibrateFromCalibrating(std::string& message);
@@ -53,12 +53,12 @@ class RobotInterface : public hidro_ros2_utils::StateMachineInterface
     private:
     rclcpp::TimerBase::SharedPtr timer_send_commands_;
 
-    rclcpp::Publisher<odri_ros2_msgs::msg::RobotState>::SharedPtr      pub_robot_state_;
-    rclcpp::Subscription<odri_ros2_msgs::msg::RobotCommand>::SharedPtr subs_motor_commands_;
+    rclcpp::Publisher<odri_ros2_interfaces::msg::RobotState>::SharedPtr      pub_robot_state_;
+    rclcpp::Subscription<odri_ros2_interfaces::msg::RobotCommand>::SharedPtr subs_motor_commands_;
 
     std::shared_ptr<odri_control_interface::Robot> odri_robot_;
 
-    odri_ros2_msgs::msg::RobotState robot_state_msg_;
+    odri_ros2_interfaces::msg::RobotState robot_state_msg_;
 
     std::chrono::high_resolution_clock::time_point t_last_mb_command_;
 
