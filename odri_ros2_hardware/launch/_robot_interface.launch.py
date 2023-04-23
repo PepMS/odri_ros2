@@ -16,7 +16,7 @@ def generate_launch_description():
     remappings = [('robot_state', '/odri/robot_state')]
 
     node = Node(
-        package='odri_interface',
+        package='odri_ros2_hardware',
         name='robot_interface',
         executable='robot_interface',
         output='screen',

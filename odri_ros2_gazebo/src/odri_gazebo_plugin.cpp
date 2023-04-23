@@ -38,13 +38,13 @@ void OdriGazeboPlugin::initializeRosObjects(sdf::ElementPtr sdf)
     ros_node_ = gazebo_ros::Node::Get(sdf);
     RCLCPP_INFO(ros_node_->get_logger(), "Loading Odri Gazebo Plugin");
 
-    pub_robot_state_     = ros_node_->create_publisher<odri_ros2_interfaces::msg::RobotState>("/robot_state", 1);
+    pub_robot_state_     = ros_node_->create_publisher<odri_ros2_interfaces::msg::RobotState>("odri/robot_state", 1);
     subs_motor_commands_ = ros_node_->create_subscription<odri_ros2_interfaces::msg::RobotCommand>(
-        "robot_command", rclcpp::QoS(rclcpp::KeepLast(1)).best_effort().durability_volatile(),
+        "odri/robot_command", rclcpp::QoS(rclcpp::KeepLast(1)).best_effort().durability_volatile(),
         std::bind(&OdriGazeboPlugin::callbackRobotCommand, this, std::placeholders::_1));
 
     // StateMachine
-    std::string service_name = std::string(ros_node_->get_name()) + "/state_transition";
+    std::string service_name = std::string("odri/robot_interface/state_transition");
     ros_node_->declare_parameter<double>("status_pub_period", 0.2);
     status_pub_period_ = std::chrono::duration<double>(ros_node_->get_parameter("status_pub_period").as_double());
 
@@ -53,7 +53,8 @@ void OdriGazeboPlugin::initializeRosObjects(sdf::ElementPtr sdf)
         std::bind(&OdriGazeboPlugin::transitionRequest, this, std::placeholders::_1, std::placeholders::_2),
         rmw_qos_profile_services_default);
 
-    pub_status_ = ros_node_->create_publisher<hidro_ros2_utils::msg::StateMachineStatus>("state_machine_status", 1);
+    pub_status_ =
+        ros_node_->create_publisher<hidro_ros2_utils::msg::StateMachineStatus>("odri/state_machine_status", 1);
 
     timer_status_pub_ = ros_node_->create_wall_timer(status_pub_period_,
                                                      std::bind(&OdriGazeboPlugin::timerPublishStateCallback, this));
@@ -112,10 +113,9 @@ void OdriGazeboPlugin::parseSdf(sdf::ElementPtr sdf)
 
     if (joints_.size() == 0)
     {
-        RCLCPP_ERROR(ros_node_->get_logger(),
-                     "Joint names introduced in the URDF plugin do not exist.");
+        RCLCPP_ERROR(ros_node_->get_logger(), "Joint names introduced in the URDF plugin do not exist.");
     }
-    
+
     safe_positions_ = Eigen::Map<Eigen::VectorXd>(safe_positions.data(), safe_positions.size());
     safe_torques_   = Eigen::Map<Eigen::VectorXd>(safe_torques.data(), safe_torques.size());
 }
