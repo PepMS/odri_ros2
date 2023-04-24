@@ -64,8 +64,7 @@ class RobotInterface : public hidro_ros2_utils::StateMachineInterface
 
     Eigen::VectorXd positions_;
     Eigen::VectorXd velocities_;
-    Eigen::VectorXd sent_torques_;
-    Eigen::VectorXd measured_torques_;
+    Eigen::VectorXd torques_;
 
     Eigen::VectorXd des_torques_;
     Eigen::VectorXd des_positions_;
