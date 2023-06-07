@@ -11,7 +11,7 @@ RobotInterface::RobotInterface(const std::string& node_name) : Node{node_name}, 
     // Build the robot yaml path
     std::string yaml_path;
     try {
-        yaml_path = ament_index_cpp::get_package_share_directory("odri_interface");
+        yaml_path = ament_index_cpp::get_package_share_directory("odri_ros2_hardware");
 
     } catch (const std::exception& e) {
         // Should never be thrown. It is this same package.
