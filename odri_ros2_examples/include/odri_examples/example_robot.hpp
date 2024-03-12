@@ -3,7 +3,7 @@
 #include <Eigen/Dense>
 
 #include <rclcpp/rclcpp.hpp>
-#include "rclcpp_components/register_node_macro.hpp"
+// #include "rclcpp_components/register_node_macro.hpp"
 #include "rcl_interfaces/msg/set_parameters_result.hpp"
 
 #include "hidro_ros2_utils/srv/transition_command.hpp"
