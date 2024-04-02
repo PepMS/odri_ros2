@@ -21,6 +21,14 @@ find_package(odri_ros2_interfaces REQUIRED)
 find_package(hidro_ros2_utils REQUIRED)
 find_package(hidro_utils REQUIRED)
 
+# Ignition
+set(IGN_PLUGIN_VER 1)
+set(IGN_COMMON_VER 4)
+set(IGN_GAZEBO_VER 6)
+find_package(ignition-cmake2 REQUIRED)
+find_package(ignition-plugin${IGN_PLUGIN_VER} REQUIRED COMPONENTS register)
+find_package(ignition-common${IGN_COMMON_VER} REQUIRED)
+find_package(ignition-gazebo${IGN_GAZEBO_VER} REQUIRED)
 
 # ---- LIBRARY: ODRI_GAZEBO_PLUGIN ----
 set(ODRI_ROS2_GAZEBO_PLUGIN_NAME odri_gazebo_plugin)
@@ -43,6 +51,27 @@ ament_target_dependencies(${ODRI_ROS2_GAZEBO_PLUGIN_NAME} hidro_ros2_utils)
 ament_target_dependencies(${ODRI_ROS2_GAZEBO_PLUGIN_NAME} hidro_utils)
 
 list(APPEND ${PROJECT_NAME}_INSTALL_TARGETS ${ODRI_ROS2_GAZEBO_PLUGIN_NAME})
+
+# ---- LIBRARY: EAGLE_ROS2_GZ_SYNC_SIM_PLUGIN ----
+set(ODRI_ROS2_GZ_PLUGIN_NAME odri_gz_plugin)
+
+list(APPEND ODRI_ROS2_GZ_PLUGIN_SRC src/odri_gz_plugin.cpp)
+
+add_library(${ODRI_ROS2_GZ_PLUGIN_NAME} SHARED
+            ${ODRI_ROS2_GZ_PLUGIN_SRC})
+
+target_include_directories(
+  ${ODRI_ROS2_GZ_PLUGIN_NAME}
+  PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+         $<INSTALL_INTERFACE:include>)
+
+ament_target_dependencies(${ODRI_ROS2_GZ_PLUGIN_NAME} ignition-plugin${IGN_PLUGIN_VER})
+ament_target_dependencies(${ODRI_ROS2_GZ_PLUGIN_NAME} ignition-common${IGN_COMMON_VER})
+ament_target_dependencies(${ODRI_ROS2_GZ_PLUGIN_NAME} ignition-gazebo${IGN_GAZEBO_VER})
+ament_target_dependencies(${ODRI_ROS2_GZ_PLUGIN_NAME} odri_ros2_interfaces)
+ament_target_dependencies(${ODRI_ROS2_GZ_PLUGIN_NAME} rclcpp)
+
+list(APPEND ${PROJECT_NAME}_INSTALL_TARGETS ${ODRI_ROS2_GZ_PLUGIN_NAME})
 
 # ---- INSTALL TARGETS ----
 ament_export_targets(${PROJECT_NAME}Targets HAS_LIBRARY_TARGET)
