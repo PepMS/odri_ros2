@@ -1,11 +1,10 @@
 
-#include "odri_ros2_gazebo/odri_gazebo_plugin.hpp"
+#include "odri_ros2_gazebo/odri_gz_plugin.hpp"
 
 #include <algorithm>
-
 #include <iostream>
 
-namespace odri_ros2_gazebo
+namespace odri_ros2_gz
 {
 
 OdriGzPlugin::OdriGzPlugin() : robot_namespace_{""}, last_sim_time_{0}, last_update_time_{0}, update_period_ms_{1.5} {}
@@ -20,18 +19,74 @@ void OdriGzPlugin::Configure(const gz::sim::Entity                     &_entity,
                              gz::sim::EntityComponentManager           &_ecm,
                              gz::sim::EventManager &)
 {
-    // Get model and world references
-    model_ = model;
-    world_ = model_->GetWorld();
+    ignmsg << "[EagleGzRamFtControllerPlugin plugin] Loading... \n";
+
+    model_ = gz::sim::Model(_entity);
+
+    if (!model_.Valid(_ecm))
+    {
+        ignerr << "This plugin should be attached to a model " << "entity. Failed to initialize." << std::endl;
+        return;
+    }
 
     initializeRosObjects();
-    parseSdf(sdf, _ecm);
+    parseSdf(_sdf->Clone(), _ecm);
     initializeStateMachine();
     initializeDataObjects();
     printInfo();
+}
 
-    // Hook into simulation update loop
-    update_connection_ = gazebo::event::Events::ConnectWorldUpdateBegin(std::bind(&OdriGzPlugin::Update, this));
+void OdriGzPlugin::PreUpdate(const gz::sim::UpdateInfo &_info, gz::sim::EntityComponentManager &_ecm)
+{
+    // Update control
+    for (std::size_t i = 0; i < joints_.size(); ++i)
+    {
+        auto &joint = joints_[i];
+
+        double force = des_torques_[i] + des_pos_gains_[i] * (des_positions_[i] - joint->Position(0)) +
+                       des_vel_gains_[i] * (des_velocities_[i] - joint->GetVelocity(0));
+        joint->SetForce(0, force);
+    }
+}
+
+void OdriGzPlugin::PostUpdate(const gz::sim::UpdateInfo &_info, const gz::sim::EntityComponentManager &_ecm)
+{
+    auto cur_time = world_->SimTime();
+    if (last_sim_time_ == 0)
+    {
+        last_sim_time_    = cur_time;
+        last_update_time_ = cur_time;
+        return;
+    }
+
+    auto dt = (cur_time - last_sim_time_).Double();
+
+    // Publish joint states
+    auto update_dt = (cur_time - last_update_time_).Double();
+    if (update_dt * 1000 >= update_period_ms_)
+    {
+        robot_state_msg_.header.stamp = ros_node_->get_clock()->now();
+        robot_state_msg_.motor_states.clear();
+
+        for (std::size_t i = 0; i < joints_.size(); ++i)
+        {
+            auto &joint = joints_[i];
+
+            odri_ros2_interfaces::msg::MotorState m_state;
+
+            m_state.position                = joint->Position(0);
+            m_state.velocity                = joint->GetVelocity(0);
+            m_state.torque                  = joint->GetForce(0u);
+            m_state.is_enabled              = true;
+            m_state.has_index_been_detected = true;
+
+            robot_state_msg_.motor_states.push_back(m_state);
+        }
+        pub_robot_state_->publish(robot_state_msg_);
+        last_update_time_ = cur_time;
+    }
+
+    last_sim_time_ = cur_time;
 }
 
 void OdriGzPlugin::initializeRosObjects()
@@ -72,7 +127,7 @@ void OdriGzPlugin::initializeRosObjects()
         ros_node_->create_wall_timer(status_pub_period_, std::bind(&OdriGzPlugin::timerPublishStateCallback, this));
 }
 
-void OdriGzPlugin::parseSdf(sdf::ElementPtr sdf)
+void OdriGzPlugin::parseSdf(sdf::ElementPtr sdf, gz::sim::EntityComponentManager &ecm)
 {
     if (!sdf->HasElement("joint"))
     {
@@ -166,55 +221,7 @@ void OdriGzPlugin::printInfo()
     RCLCPP_INFO_STREAM(ros_node_->get_logger(), "\tSafe torques: " << safe_torques_.transpose());
 }
 
-void OdriGzPlugin::Update()
-{
-    auto cur_time = world_->SimTime();
-    if (last_sim_time_ == 0)
-    {
-        last_sim_time_    = cur_time;
-        last_update_time_ = cur_time;
-        return;
-    }
-
-    auto dt = (cur_time - last_sim_time_).Double();
-
-    // Publish joint states
-    auto update_dt = (cur_time - last_update_time_).Double();
-    if (update_dt * 1000 >= update_period_ms_)
-    {
-        robot_state_msg_.header.stamp = ros_node_->get_clock()->now();
-        robot_state_msg_.motor_states.clear();
-
-        for (std::size_t i = 0; i < joints_.size(); ++i)
-        {
-            auto &joint = joints_[i];
-
-            odri_ros2_interfaces::msg::MotorState m_state;
-
-            m_state.position                = joint->Position(0);
-            m_state.velocity                = joint->GetVelocity(0);
-            m_state.torque                  = joint->GetForce(0u);
-            m_state.is_enabled              = true;
-            m_state.has_index_been_detected = true;
-
-            robot_state_msg_.motor_states.push_back(m_state);
-        }
-        pub_robot_state_->publish(robot_state_msg_);
-        last_update_time_ = cur_time;
-    }
-
-    // Update control
-    for (std::size_t i = 0; i < joints_.size(); ++i)
-    {
-        auto &joint = joints_[i];
-
-        double force = des_torques_[i] + des_pos_gains_[i] * (des_positions_[i] - joint->Position(0)) +
-                       des_vel_gains_[i] * (des_velocities_[i] - joint->GetVelocity(0));
-        joint->SetForce(0, force);
-    }
-
-    last_sim_time_ = cur_time;
-}
+void OdriGzPlugin::Update() {}
 
 void OdriGzPlugin::callbackRobotCommand(const odri_ros2_interfaces::msg::RobotCommand::SharedPtr msg)
 {
@@ -303,6 +310,12 @@ bool OdriGzPlugin::transStopCallback(std::string &message)
     return true;
 }
 
-GZ_REGISTER_MODEL_PLUGIN(OdriGzPlugin)
+}  // namespace odri_ros2_gz
 
-}  // namespace odri_ros2_gazebo
+#include <gz/plugin/Register.hh>
+
+IGNITION_ADD_PLUGIN(odri_ros2_gz::OdriGzPlugin,
+                    gz::sim::System,
+                    eagle_ros2_gz::EagleGzSyncSimPlugin::ISystemConfigure,
+                    eagle_ros2_gz::EagleGzSyncSimPlugin::ISystemPreUpdate,
+                    eagle_ros2_gz::EagleGzSyncSimPlugin::ISystemPostUpdate)

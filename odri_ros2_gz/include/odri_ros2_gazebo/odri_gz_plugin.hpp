@@ -6,6 +6,7 @@
 #include <Eigen/Dense>
 
 #include <gz/sim/System.hh>
+#include <gz/sim/Model.hh>
 
 #include <rclcpp/rclcpp.hpp>
 
@@ -19,7 +20,7 @@
 
 #include "hidro_utils/state_machine.hpp"
 
-namespace odri_ros2_gazebo
+namespace odri_ros2_gz
 {
 
 class OdriGzPlugin : public gz::sim::System,
@@ -64,8 +65,7 @@ class OdriGzPlugin : public gz::sim::System,
   private:
     std::string robot_namespace_;
 
-    // gazebo::physics::ModelPtr model_;
-    // gazebo::physics::WorldPtr world_;
+    gz::sim::Model model_;
 
     gazebo::common::Time last_sim_time_;
     gazebo::common::Time last_update_time_;
@@ -74,9 +74,8 @@ class OdriGzPlugin : public gz::sim::System,
     std::vector<gazebo::physics::JointPtr> joints_;
     std::vector<std::string>               joint_names_;
 
-    rclcpp::Node::SharedPtr ros_node_;
-
     // ROS members
+    rclcpp::Node::SharedPtr                                                  ros_node_;
     rclcpp::Publisher<odri_ros2_interfaces::msg::RobotState>::SharedPtr      pub_robot_state_;
     rclcpp::Subscription<odri_ros2_interfaces::msg::RobotCommand>::SharedPtr subs_motor_commands_;
 
@@ -105,4 +104,4 @@ class OdriGzPlugin : public gz::sim::System,
     Eigen::VectorXd safe_torques_;
 };
 
-}  // namespace odri_ros2_gazebo
+}  // namespace odri_ros2_gz
